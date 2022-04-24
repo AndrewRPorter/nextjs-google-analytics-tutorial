@@ -16,7 +16,7 @@ This is the google tagging framework that allows us to send event data to Google
 
 If you don't already have a `_document.js` file created in your Next.js project, create one in `pages`. This allows us to set custom `<head>` elements, which is where our gtag script will live.
 
-An example `_document.js` looks like this:
+An example `_document.js` looks like this. Notice the scripts inside the Head tag. This is what initializes google analytics in our application.
 
 ```js
 import Document, { Html, Head, Main, NextScript } from "next/document";
@@ -25,7 +25,24 @@ class MyDocument extends Document {
   render() {
     return (
       <Html>
-        <Head></Head>
+        <Head>
+          <script
+            async
+            src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS}`}
+          />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '${process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS}', {
+        page_path: window.location.pathname,
+    });
+    `,
+            }}
+          />
+        </Head>
         <body>
           <Main />
           <NextScript />
@@ -36,27 +53,6 @@ class MyDocument extends Document {
 }
 
 export default MyDocument;
-```
-
-We will go ahead and add the following scripts to our `_document.js` inside the `<Head>` tag:
-
-```js
-<script
-    async
-    src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS}`}
-/>
-<script
-    dangerouslySetInnerHTML={{
-        __html: `
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', '${process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS}', {
-        page_path: window.location.pathname,
-    });
-    `
-    }}
-/>
 ```
 
 ### 3. Setup a helper package to communicate with gtag
@@ -85,32 +81,32 @@ export const event = ({ action, params }) => {
 
 Within our `_app.js` file, we are going to use the Next.js router to listen for event changes. If the event `routeChangeComplete` is triggered, we will send a pageview event. Read more about the custom App component in Next.js [here](https://nextjs.org/docs/advanced-features/custom-app).
 
-Start by importing the following:
+We want to create a use effect hook in our app component that looks like:
 
 ```js
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { pageview } from "../lib/ga";
-```
 
-We want to create a use effect hook in our app component that looks like:
+...
 
-```js
-useEffect(() => {
-  const handleRouteChange = (url) => {
-    ga.pageview(url);
-  };
+const router = useRouter();
 
-  //When the component is mounted, subscribe to router changes
-  //and log those page views
-  router.events.on("routeChangeComplete", handleRouteChange);
+  useEffect(() => {
+    const handleRouteChange = (url) => {
+      pageview(url);
+    };
 
-  // If the component is unmounted, unsubscribe
-  // from the event with the `off` method
-  return () => {
-    router.events.off("routeChangeComplete", handleRouteChange);
-  };
-}, [router.events]);
+    //When the component is mounted, subscribe to router changes
+    //and log those page views
+    router.events.on("routeChangeComplete", handleRouteChange);
+
+    // If the component is unmounted, unsubscribe
+    // from the event with the `off` method
+    return () => {
+      router.events.off("routeChangeComplete", handleRouteChange);
+    };
+  }, [router.events]);
 ```
 
 _Note that this function will only work with Next.js `<Link>` component links. Regular `<a>` tags will not be execute the custom script we created. Instead, the gtag will be loaded into the head and a request will be sent off for a new page load._
